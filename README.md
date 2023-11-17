@@ -1,5 +1,5 @@
 # Wisp
-Wisp is the voxel-renderer for the Magma3D engine. It uses raymarching to render the voxels.
+Wisp is the voxel-hybrid-renderer for the Magma3D engine. It uses raymarching to render the voxels.
 ## Features
 - [ ] raymarcing voxels with smooth min (very lightweight)
 - [ ] materials/shading

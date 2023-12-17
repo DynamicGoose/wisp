@@ -6,3 +6,12 @@ edition = "2021"
 # See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
 
 [dependencies]
+tracing = "0.1.40"
+tracing-subscriber = "0.3.18"
+wgpu = "0.18.0"
+winit = "0.29.4"
+
+[[test]]
+name = "wisp_tests"
+path = "tests/main.rs"
+harness = false

@@ -11,5 +11,4 @@ Wisp is the voxel-hybrid-renderer for the Magma3D engine. It uses raymarching to
 Voxels in Wisp are represented as points. All voxels can have an indivudual radius and a smooth minimum function is used to interpolate between them. Wisp supports per-voxel global illumination. More detailed reflections are also supported for increased resolution of reflections. Async reprojection is used to make Wisp able to run on almost any hardware. 
 ## How to use it
 ## Credits
-- Vulkan
-- ash-rs
+- [wgpu](https://github.com/gfx-rs/wgpu)

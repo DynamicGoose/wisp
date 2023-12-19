@@ -175,24 +175,7 @@ pub async fn run() {
                     elwt.exit();
                 }
                 Event::AboutToWait => {
-                    state.update();
-                    match state.render() {
-                        Ok(_) => {}
-                        // Reconfigure the surface if lost
-                        Err(wgpu::SurfaceError::Lost) => state.resize(state.size),
-                        // The system is out of memory, we should probably quit
-                        Err(wgpu::SurfaceError::OutOfMemory) => elwt.exit(),
-                        // All other errors (Outdated, Timeout) should be resolved by the next frame
-                        Err(e) => eprintln!("{:?}", e),
-                    }
-                    // Application update code.
-
-                    // Queue a RedrawRequested event.
-                    //
-                    // You only need to call this if you've determined that you need to redraw, in
-                    // applications which do not always need to. Applications that redraw continuously
-                    // can just render here instead.
-                    // state.window.request_redraw();
+                    state.window.request_redraw();
                 }
                 Event::WindowEvent {
                     event: WindowEvent::RedrawRequested,

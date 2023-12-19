@@ -13,6 +13,6 @@ let
 in
 with pkgs; mkShell {
   inputsFrom = [ ];
-  buildInputs = [ rustup ];
+  buildInputs = [ rustup vulkan-tools ];
   LD_LIBRARY_PATH = "${libPath}";
 }

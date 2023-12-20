@@ -4,6 +4,8 @@ let
     libGL
     libxkbcommon
     wayland
+    vulkan-tools
+    vulkan-loader
     # alsa-lib
     # xorg.libX11
     # xorg.libXcursor

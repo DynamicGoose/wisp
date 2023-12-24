@@ -3,7 +3,7 @@ use winit::{
     dpi::PhysicalSize,
     event::*,
     event_loop::EventLoop,
-    keyboard::{Key, NamedKey, SmolStr},
+    keyboard::{Key, NamedKey},
     window::{Window, WindowBuilder},
 };
 

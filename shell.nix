@@ -6,6 +6,8 @@ let
     wayland
     vulkan-tools
     vulkan-loader
+    pkg-config
+    openssl
     # alsa-lib
     # xorg.libX11
     # xorg.libXcursor

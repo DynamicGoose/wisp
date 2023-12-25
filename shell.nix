@@ -6,8 +6,6 @@ let
     wayland
     vulkan-tools
     vulkan-loader
-    pkg-config
-    openssl
     # alsa-lib
     # xorg.libX11
     # xorg.libXcursor
@@ -17,6 +15,6 @@ let
 in
 with pkgs; mkShell {
   inputsFrom = [ ];
-  buildInputs = [ rustup vulkan-tools ];
+  buildInputs = [ rustup vulkan-tools openssl ];
   LD_LIBRARY_PATH = "${libPath}";
 }

@@ -16,6 +16,7 @@ pub mod model;
 pub mod resources;
 pub mod texture;
 
+// done
 #[repr(C)]
 #[derive(Debug, Copy, Clone, bytemuck::Pod, bytemuck::Zeroable)]
 struct LightUniform {
@@ -27,11 +28,13 @@ struct LightUniform {
     _padding2: u32,
 }
 
+// done
 struct Instance {
     position: cgmath::Vector3<f32>,
     rotation: cgmath::Quaternion<f32>,
 }
 
+// done
 impl Instance {
     fn to_raw(&self) -> InstanceRaw {
         let model =

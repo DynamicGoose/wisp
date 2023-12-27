@@ -8,10 +8,14 @@ edition = "2021"
 [dependencies]
 bytemuck = { version = "1.14.0", features = ["derive"] }
 glam = "0.25.0"
-tracing = "0.1.40"
-tracing-subscriber = "0.3.18"
+image = "0.24.7"
 wgpu = "0.18.0"
 winit = { version = "0.29.4", features = ["rwh_05"] }
+
+[dev-dependencies]
+pollster = "0.3.0"
+tracing = "0.1.40"
+tracing-subscriber = "0.3.18"
 
 [build-dependencies]
 anyhow = "1.0"

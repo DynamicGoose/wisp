@@ -1,5 +1,4 @@
 use winit::{
-    dpi::PhysicalSize,
     event::{Event, WindowEvent},
     event_loop::EventLoop,
     window::Window,
@@ -19,39 +18,39 @@ fn main() {
     event_loop
         .run(move |event, elwt| {
             match event {
-                Event::AboutToWait => {
-                    state.window.request_redraw();
+                Event::WindowEvent {
+                    event: WindowEvent::CloseRequested,
+                    ..
+                } => {
+                    println!("The close button was pressed; stopping");
+                    elwt.exit();
                 }
-                Event::WindowEvent { event, .. } => {
-                    match event {
-                        WindowEvent::CloseRequested => {
-                            println!("The close button was pressed; stopping");
-                            elwt.exit();
-                        }
-                        WindowEvent::RedrawRequested => {
-                            match state.render() {
-                                Ok(_) => {}
-                                // Reconfigure the surface if lost
-                                Err(wgpu::SurfaceError::Lost) => state.resize(state.surface_size),
-                                // The system is out of memory, we should probably quit
-                                Err(wgpu::SurfaceError::OutOfMemory) => elwt.exit(),
-                                // All other errors (Outdated, Timeout) should be resolved by the next frame
-                                Err(e) => eprintln!("{:?}", e),
-                            }
-                        }
-                        WindowEvent::Resized(physicsl_size) => {
-                            state.resize(physicsl_size);
-                        }
-                        WindowEvent::ScaleFactorChanged { scale_factor, .. } => {
-                            state.resize(PhysicalSize {
-                                width: state.window.inner_size().width
-                                    * scale_factor.round() as u32,
-                                height: state.window.inner_size().height
-                                    * scale_factor.round() as u32,
-                            })
-                        }
-                        _ => (),
-                    }
+                Event::AboutToWait => {
+                    // Application update code.
+
+                    // Queue a RedrawRequested event.
+                    //
+                    // You only need to call this if you've determined that you need to redraw in
+                    // applications which do not always need to. Applications that redraw continuously
+                    // can render here instead.
+                    window.request_redraw();
+                }
+                Event::WindowEvent {
+                    event: WindowEvent::RedrawRequested,
+                    ..
+                } => {
+                    state.render().unwrap();
+                    // Redraw the application.
+                    //
+                    // It's preferable for applications that do not render continuously to render in
+                    // this event rather than in AboutToWait, since rendering in here allows
+                    // the program to gracefully handle redraws requested by the OS.
+                }
+                Event::WindowEvent {
+                    event: WindowEvent::Resized(new_size),
+                    ..
+                } => {
+                    state.resize(new_size);
                 }
                 _ => (),
             }

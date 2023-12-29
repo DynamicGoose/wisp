@@ -1,3 +1,4 @@
+use wgpu::ShaderModuleDescriptor;
 use winit::{
     event::{Event, WindowEvent},
     event_loop::EventLoop,
@@ -14,6 +15,12 @@ fn main() {
     let window = Window::new(&event_loop).unwrap();
 
     let mut state = pollster::block_on(RenderState::new(&window));
+    state.add_shader_module(ShaderModuleDescriptor {
+        label: Some("shader"),
+        source: wgpu::ShaderSource::Wgsl(include_str!("shader-test.wgsl").into()),
+    });
+
+    let mut counter = 0;
 
     event_loop
         .run(move |event, elwt| {
@@ -33,6 +40,10 @@ fn main() {
                     // You only need to call this if you've determined that you need to redraw in
                     // applications which do not always need to. Applications that redraw continuously
                     // can render here instead.
+                    counter += 1;
+                    if counter > 1000 {
+                        elwt.exit();
+                    }
                     window.request_redraw();
                 }
                 Event::WindowEvent {

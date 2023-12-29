@@ -1,4 +1,9 @@
+use model::Vertex;
+use wgpu::ShaderModuleDescriptor;
 use winit::{dpi::PhysicalSize, window::Window};
+
+pub mod model;
+pub mod texture;
 
 pub struct RenderState {
     surface: wgpu::Surface,
@@ -131,12 +136,73 @@ impl RenderState {
 
         Ok(())
     }
+
+    pub fn add_shader_module(&mut self, shader: ShaderModuleDescriptor) {
+        let shader = self.device.create_shader_module(shader);
+
+        let pipeline = self
+            .device
+            .create_render_pipeline(&wgpu::RenderPipelineDescriptor {
+                label: Some("Render Pipeline"),
+                layout: Some(&self.pipeline_layout),
+                vertex: wgpu::VertexState {
+                    module: &shader,
+                    entry_point: "vs_main",
+                    buffers: &[model::ModelVertex::desc()],
+                },
+                fragment: Some(wgpu::FragmentState {
+                    module: &shader,
+                    entry_point: "fs_main",
+                    targets: &[Some(wgpu::ColorTargetState {
+                        format: self.surface_config.format,
+                        blend: Some(wgpu::BlendState {
+                            alpha: wgpu::BlendComponent::REPLACE,
+                            color: wgpu::BlendComponent::REPLACE,
+                        }),
+                        write_mask: wgpu::ColorWrites::ALL,
+                    })],
+                }),
+                primitive: wgpu::PrimitiveState {
+                    topology: wgpu::PrimitiveTopology::TriangleList,
+                    strip_index_format: None,
+                    front_face: wgpu::FrontFace::Ccw,
+                    cull_mode: Some(wgpu::Face::Back),
+                    // Setting this to anything other than Fill requires Features::NON_FILL_POLYGON_MODE
+                    polygon_mode: wgpu::PolygonMode::Fill,
+                    // Requires Features::DEPTH_CLIP_CONTROL
+                    unclipped_depth: false,
+                    // Requires Features::CONSERVATIVE_RASTERIZATION
+                    conservative: false,
+                },
+                depth_stencil: None,
+                // Some(texture::Texture::DEPTH_FORMAT).map(|format| {
+                //     wgpu::DepthStencilState {
+                //         format,
+                //         depth_write_enabled: true,
+                //         depth_compare: wgpu::CompareFunction::Less,
+                //         stencil: wgpu::StencilState::default(),
+                //         bias: wgpu::DepthBiasState::default(),
+                //     }
+                // }),
+                multisample: wgpu::MultisampleState {
+                    count: 1,
+                    mask: !0,
+                    alpha_to_coverage_enabled: false,
+                },
+                multiview: None,
+            });
+
+        self.render_pipelines.push(pipeline);
+    }
 }
 
-pub struct SceneData {}
+#[derive(Default)]
+pub struct SceneData {
+    models: Vec<model::Model>,
+}
 
 impl SceneData {
     pub fn new() -> Self {
-        Self {}
+        Self { models: vec![] }
     }
 }

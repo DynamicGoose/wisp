@@ -3,8 +3,8 @@ use glam::{Mat3, Mat4, Quat, Vec3};
 use crate::model;
 
 pub struct Instance {
-    position: Vec3,
-    rotation: Quat,
+    pub position: Vec3,
+    pub rotation: Quat,
 }
 
 impl Instance {

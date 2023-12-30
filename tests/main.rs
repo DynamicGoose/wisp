@@ -1,10 +1,9 @@
-use wgpu::ShaderModuleDescriptor;
 use winit::{
     event::{Event, WindowEvent},
     event_loop::EventLoop,
     window::Window,
 };
-use wisp::RenderState;
+use wisp::{instance::Instance, resources::load_model, RenderState};
 
 fn main() {
     tracing_subscriber::fmt::init();
@@ -15,10 +14,36 @@ fn main() {
     let window = Window::new(&event_loop).unwrap();
 
     let mut state = pollster::block_on(RenderState::new(&window));
-    state.add_shader_module(ShaderModuleDescriptor {
-        label: Some("shader"),
-        source: wgpu::ShaderSource::Wgsl(include_str!("shader-test.wgsl").into()),
-    });
+
+    const NUM_INSTANCES_PER_ROW: u32 = 10;
+    const SPACE_BETWEEN: f32 = 3.0;
+    let instances = (0..NUM_INSTANCES_PER_ROW)
+        .flat_map(|z| {
+            (0..NUM_INSTANCES_PER_ROW).map(move |x| {
+                let x = SPACE_BETWEEN * (x as f32 - NUM_INSTANCES_PER_ROW as f32 / 2.0);
+                let z = SPACE_BETWEEN * (z as f32 - NUM_INSTANCES_PER_ROW as f32 / 2.0);
+
+                let position = glam::Vec3 { x, y: 0.0, z };
+
+                let rotation = if position == glam::Vec3::ZERO {
+                    glam::Quat::from_axis_angle(glam::Vec3::Z, 0.0)
+                } else {
+                    glam::Quat::from_axis_angle(position.normalize(), 45.0)
+                };
+
+                Instance { position, rotation }
+            })
+        })
+        .collect::<Vec<_>>();
+    let model = pollster::block_on(load_model(
+        "cube.obj",
+        &state.device,
+        &state.queue,
+        &state.texture_bind_group_layout,
+        instances,
+    ));
+
+    state.add_model(model.unwrap());
 
     let mut counter = 0;
 
@@ -41,9 +66,9 @@ fn main() {
                     // applications which do not always need to. Applications that redraw continuously
                     // can render here instead.
                     counter += 1;
-                    if counter > 1000 {
-                        elwt.exit();
-                    }
+                    // if counter > 1000 {
+                    //     elwt.exit();
+                    // }
                     window.request_redraw();
                 }
                 Event::WindowEvent {

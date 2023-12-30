@@ -1,12 +1,13 @@
 use std::ops::Range;
 
-use crate::texture;
+use crate::{instance::Instance, texture};
 
 pub struct Model {
     pub meshes: Vec<Mesh>,
     pub materials: Vec<Material>,
+    pub instances: Vec<Instance>,
+    pub instance_buffer_id: usize,
 }
-
 pub struct Material {
     pub name: String,
     pub diffuse_texture: texture::Texture,

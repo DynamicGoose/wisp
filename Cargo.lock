@@ -1671,6 +1671,15 @@ dependencies = [
 ]
 
 [[package]]
+name = "tobj"
+version = "4.0.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "b450e3ba06251ec4fc76917dafeaf55805ffb26dbf7d5500bfb9511ce63a0d1f"
+dependencies = [
+ "ahash",
+]
+
+[[package]]
 name = "toml_datetime"
 version = "0.6.3"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -2437,6 +2446,7 @@ dependencies = [
  "glob",
  "image",
  "pollster",
+ "tobj",
  "tracing",
  "tracing-subscriber",
  "wgpu",

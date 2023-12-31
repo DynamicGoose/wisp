@@ -3,7 +3,7 @@ use winit::{
     event_loop::EventLoop,
     window::Window,
 };
-use wisp::{instance::Instance, resources::load_model, RenderState};
+use wisp::{instance::Instance, RenderState};
 
 fn main() {
     tracing_subscriber::fmt::init();
@@ -35,15 +35,7 @@ fn main() {
             })
         })
         .collect::<Vec<_>>();
-    let model = pollster::block_on(load_model(
-        "cube.obj",
-        &state.device,
-        &state.queue,
-        &state.texture_bind_group_layout,
-        instances,
-    ));
-
-    state.add_model(model.unwrap());
+    pollster::block_on(state.add_model("cube.obj", instances));
 
     let mut counter = 0;
 

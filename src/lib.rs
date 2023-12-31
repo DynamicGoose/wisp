@@ -3,6 +3,7 @@ use glam::Vec3;
 use instance::{Instance, InstanceRaw};
 use light::LightUniform;
 use model::{DrawLight, DrawModel, Model, Vertex};
+use resources::load_model;
 use texture::Texture;
 use wgpu::util::DeviceExt;
 use winit::{dpi::PhysicalSize, window::Window};
@@ -19,18 +20,14 @@ pub struct RenderState {
     surface_config: wgpu::SurfaceConfiguration,
     pub device: wgpu::Device,
     pub queue: wgpu::Queue,
-    models: Vec<Model>,
-    instance_buffers: Vec<wgpu::Buffer>,
+    models: Vec<Option<Model>>,
+    instance_buffers: Vec<Option<wgpu::Buffer>>,
     depth_texture: Texture,
     // these are temporary
-    // TODO: texture_bind_group_layout für jedes model
     pub texture_bind_group_layout: wgpu::BindGroupLayout,
     camera: Camera,
     camera_uniform: CameraUniform,
-    camera_buffer: wgpu::Buffer,
     camera_bind_group: wgpu::BindGroup,
-    light_uniform: LightUniform,
-    light_buffer: wgpu::Buffer,
     light_bind_group: wgpu::BindGroup,
     //---
     render_pipelines: Vec<wgpu::RenderPipeline>,
@@ -101,7 +98,7 @@ impl RenderState {
             // which way is "up"
             up: Vec3::Y,
             aspect: surface_config.width as f32 / surface_config.height as f32,
-            fovy: 45.0,
+            fovy: 96.0,
             znear: 0.1,
             zfar: 100.0,
         };
@@ -284,10 +281,7 @@ impl RenderState {
             texture_bind_group_layout,
             camera,
             camera_uniform,
-            camera_buffer,
             camera_bind_group,
-            light_uniform,
-            light_buffer,
             light_bind_group,
             render_pipelines,
             _compute_pipelines,
@@ -304,6 +298,9 @@ impl RenderState {
                 &self.surface_config,
                 "depth_texture",
             );
+            self.camera.aspect =
+                self.surface_config.width as f32 / self.surface_config.height as f32;
+            self.camera_uniform.update_view_projection(&self.camera)
         }
     }
 
@@ -348,23 +345,29 @@ impl RenderState {
 
             // TODO: *IMPROVEMENTS MUST BE MADE*
             self.models.iter().for_each(|model| {
-                render_pass.set_vertex_buffer(
-                    1,
-                    self.instance_buffers[model.instance_buffer_id].slice(..),
-                );
-                render_pass.set_pipeline(&self.render_pipelines[1]);
-                render_pass.draw_light_model(
-                    model,
-                    &self.camera_bind_group,
-                    &self.light_bind_group,
-                );
-                render_pass.set_pipeline(&self.render_pipelines[0]);
-                render_pass.draw_model_instanced(
-                    model,
-                    0..model.instances.len() as u32,
-                    &self.camera_bind_group,
-                    &self.light_bind_group,
-                );
+                if model.is_some() {
+                    let model = model.as_ref().unwrap();
+                    render_pass.set_vertex_buffer(
+                        1,
+                        self.instance_buffers[model.instance_buffer_id]
+                            .as_ref()
+                            .unwrap()
+                            .slice(..),
+                    );
+                    render_pass.set_pipeline(&self.render_pipelines[1]);
+                    render_pass.draw_light_model(
+                        model,
+                        &self.camera_bind_group,
+                        &self.light_bind_group,
+                    );
+                    render_pass.set_pipeline(&self.render_pipelines[0]);
+                    render_pass.draw_model_instanced(
+                        model,
+                        0..model.instances.len() as u32,
+                        &self.camera_bind_group,
+                        &self.light_bind_group,
+                    );
+                }
             });
         }
 
@@ -434,7 +437,16 @@ impl RenderState {
     }
 
     /// Adds a [`Model`] and returns it's id
-    pub fn add_model(&mut self, model: Model) -> usize {
+    pub async fn add_model(&mut self, model_file: &str, instances: Vec<Instance>) -> usize {
+        let model = load_model(
+            model_file,
+            &self.device,
+            &self.queue,
+            &self.texture_bind_group_layout,
+            instances,
+        )
+        .await
+        .unwrap();
         let instance_data = model
             .instances
             .iter()
@@ -442,7 +454,7 @@ impl RenderState {
             .collect::<Vec<_>>();
 
         let index = self.models.len();
-        self.models.push(model);
+        self.models.push(Some(model));
 
         let instance_buffer = self
             .device
@@ -452,8 +464,8 @@ impl RenderState {
                 usage: wgpu::BufferUsages::VERTEX,
             });
 
-        self.models[index].instance_buffer_id = self.instance_buffers.len();
-        self.instance_buffers.push(instance_buffer);
+        self.models[index].as_mut().unwrap().instance_buffer_id = self.instance_buffers.len();
+        self.instance_buffers.push(Some(instance_buffer));
 
         index
     }

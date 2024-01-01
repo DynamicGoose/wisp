@@ -14,16 +14,26 @@ pub struct Camera {
     pub eye: Vec3,
     pub target: Vec3,
     pub up: Vec3,
-    pub aspect: f32,
     pub fovy: f32,
     pub znear: f32,
     pub zfar: f32,
+    pub viewport: Option<Viewport>,
 }
 
 impl Camera {
-    pub fn build_view_projection_matrix(&self) -> Mat4 {
+    pub fn build_view_projection_matrix(&self, aspect: f32) -> Mat4 {
         let view = Mat4::look_at_rh(self.eye, self.target, self.up);
-        let proj = Mat4::perspective_rh(self.fovy, self.aspect, self.znear, self.zfar);
+        let proj = if self.viewport.is_some() {
+            Mat4::perspective_rh(
+                self.fovy,
+                self.viewport.as_ref().unwrap().w / self.viewport.as_ref().unwrap().h,
+                self.znear,
+                self.zfar,
+            )
+        } else {
+            Mat4::perspective_rh(self.fovy, aspect, self.znear, self.zfar)
+        };
+
         proj * view
     }
 }
@@ -43,9 +53,16 @@ impl CameraUniform {
         }
     }
 
-    pub fn update_view_projection(&mut self, camera: &Camera) {
+    pub fn update_view_projection(&mut self, camera: &Camera, aspect: f32) {
         // We're using Vector4 because of the uniforms 16 byte spacing requirement
         self.view_position = [camera.eye.x, camera.eye.y, camera.eye.z, 1.0];
-        self.view_projection = (camera.build_view_projection_matrix()).to_cols_array_2d();
+        self.view_projection = (camera.build_view_projection_matrix(aspect)).to_cols_array_2d();
     }
+}
+
+pub struct Viewport {
+    pub x: f32,
+    pub y: f32,
+    pub w: f32,
+    pub h: f32,
 }

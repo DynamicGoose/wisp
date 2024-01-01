@@ -4,7 +4,11 @@ use winit::{
     event_loop::EventLoop,
     window::Window,
 };
-use wisp::{instance::Instance, RenderState};
+use wisp::{
+    camera::{Camera, Viewport},
+    instance::Instance,
+    RenderState,
+};
 
 fn main() {
     tracing_subscriber::fmt::init();
@@ -15,6 +19,25 @@ fn main() {
     let window = Window::new(&event_loop).unwrap();
 
     let mut state = pollster::block_on(RenderState::new(&window));
+    let camera = Camera {
+        // position the camera 1 unit up and 2 units back
+        // +z is out of the screen
+        eye: (0.0, 20.0, 0.01).into(),
+        // have it look at the origin
+        target: (0.0, 0.0, 0.0).into(),
+        // which way is "up"
+        up: Vec3::Y,
+        fovy: 96.0,
+        znear: 0.1,
+        zfar: 100.0,
+        viewport: Some(Viewport {
+            x: 0.0,
+            y: 0.0,
+            w: 128.0,
+            h: 128.0,
+        }),
+    };
+    state.add_camera(camera);
 
     const NUM_INSTANCES_PER_ROW: u32 = 10;
     const SPACE_BETWEEN: f32 = 3.0;
@@ -70,7 +93,7 @@ fn main() {
                 }
 
                 // Updating instances
-                let instance = state.get_instance(0, 2);
+                let instance = state.get_instance(model, 2);
                 let instance_override = Instance {
                     position: Vec3::new(
                         instance.position.x + 0.01,

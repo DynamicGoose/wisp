@@ -17,21 +17,24 @@ mod texture;
 
 /// This holds all the required information for rendering the scene.
 pub struct RenderState {
+    // wgpu context
     surface: wgpu::Surface,
     surface_config: wgpu::SurfaceConfiguration,
     device: wgpu::Device,
     queue: wgpu::Queue,
+    // scene data
     models: Vec<Option<Model>>,
     instance_buffers: Vec<Option<wgpu::Buffer>>,
     recreate_instance_buffers: Vec<usize>,
     depth_texture: Texture,
-    // these are temporary
     texture_bind_group_layout: wgpu::BindGroupLayout,
-    camera: Camera,
-    camera_uniform: CameraUniform,
-    camera_bind_group: wgpu::BindGroup,
+    // cameras
+    cameras: Vec<Option<Camera>>,
+    camera_uniforms: Vec<Option<CameraUniform>>,
+    camera_buffers: Vec<Option<wgpu::Buffer>>,
+    camera_bind_groups: Vec<Option<wgpu::BindGroup>>,
     light_bind_group: wgpu::BindGroup,
-    //---
+    // pipelines
     render_pipelines: Vec<wgpu::RenderPipeline>,
     _compute_pipelines: Vec<wgpu::ComputePipeline>,
 }
@@ -92,7 +95,7 @@ impl RenderState {
         let depth_texture =
             texture::Texture::create_depth_texture(&device, &surface_config, "depth_texture");
 
-        let camera = Camera {
+        let cameras = vec![Some(Camera {
             // position the camera 1 unit up and 2 units back
             // +z is out of the screen
             eye: (0.0, 20.0, 0.01).into(),
@@ -100,20 +103,27 @@ impl RenderState {
             target: (0.0, 0.0, 0.0).into(),
             // which way is "up"
             up: Vec3::Y,
-            aspect: surface_config.width as f32 / surface_config.height as f32,
             fovy: 96.0,
             znear: 0.1,
             zfar: 100.0,
-        };
+            viewport: None,
+        })];
 
         let mut camera_uniform = CameraUniform::new();
-        camera_uniform.update_view_projection(&camera);
+        camera_uniform.update_view_projection(
+            cameras[0].as_ref().unwrap(),
+            surface_config.width as f32 / surface_config.height as f32,
+        );
 
-        let camera_buffer = device.create_buffer_init(&wgpu::util::BufferInitDescriptor {
-            label: Some("Camera Buffer"),
-            contents: bytemuck::cast_slice(&[camera_uniform]),
-            usage: wgpu::BufferUsages::UNIFORM | wgpu::BufferUsages::COPY_DST,
-        });
+        let camera_uniforms = vec![Some(camera_uniform)];
+
+        let camera_buffers = vec![Some(device.create_buffer_init(
+            &wgpu::util::BufferInitDescriptor {
+                label: Some("Camera Buffer"),
+                contents: bytemuck::cast_slice(&[camera_uniform]),
+                usage: wgpu::BufferUsages::UNIFORM | wgpu::BufferUsages::COPY_DST,
+            },
+        ))];
 
         let camera_bind_group_layout =
             device.create_bind_group_layout(&wgpu::BindGroupLayoutDescriptor {
@@ -130,14 +140,14 @@ impl RenderState {
                 label: Some("camera_bind_group_layout"),
             });
 
-        let camera_bind_group = device.create_bind_group(&wgpu::BindGroupDescriptor {
+        let camera_bind_groups = vec![Some(device.create_bind_group(&wgpu::BindGroupDescriptor {
             layout: &camera_bind_group_layout,
             entries: &[wgpu::BindGroupEntry {
                 binding: 0,
-                resource: camera_buffer.as_entire_binding(),
+                resource: camera_buffers[0].as_ref().unwrap().as_entire_binding(),
             }],
             label: Some("camera_bind_group"),
-        });
+        }))];
 
         let light_uniform = LightUniform {
             position: [2.0, 2.0, 2.0],
@@ -274,9 +284,10 @@ impl RenderState {
             recreate_instance_buffers,
             depth_texture,
             texture_bind_group_layout,
-            camera,
-            camera_uniform,
-            camera_bind_group,
+            cameras,
+            camera_uniforms,
+            camera_buffers,
+            camera_bind_groups,
             light_bind_group,
             render_pipelines,
             _compute_pipelines,
@@ -354,32 +365,49 @@ impl RenderState {
                 occlusion_query_set: None,
             });
 
-            // TODO: *IMPROVEMENTS MUST BE MADE*
-            let mut index = 0_usize;
-            self.models.iter().for_each(|model| {
-                if model.is_some() {
-                    let model = model.as_ref().unwrap();
-                    render_pass.set_vertex_buffer(
-                        1,
-                        self.instance_buffers[index].as_ref().unwrap().slice(..),
-                    );
-                    render_pass.set_pipeline(&self.render_pipelines[1]);
-                    render_pass.draw_light_model(
-                        model,
-                        &self.camera_bind_group,
-                        &self.light_bind_group,
-                    );
-                    render_pass.set_pipeline(&self.render_pipelines[0]);
-                    render_pass.draw_model_instanced(
-                        model,
-                        0..model.instances.len() as u32,
-                        &self.camera_bind_group,
-                        &self.light_bind_group,
-                    );
-                }
+            for (camera_index, camera) in self.cameras.iter().enumerate() {
+                if camera.is_some() {
+                    let viewport = &camera.as_ref().unwrap().viewport;
 
-                index += 1;
-            });
+                    if viewport.is_some() {
+                        render_pass.set_viewport(
+                            viewport.as_ref().unwrap().x,
+                            viewport.as_ref().unwrap().y,
+                            viewport.as_ref().unwrap().w,
+                            viewport.as_ref().unwrap().h,
+                            0.0,
+                            1.0,
+                        );
+                    }
+
+                    // TODO: *IMPROVEMENTS MUST BE MADE*
+                    for (model_index, model) in self.models.iter().enumerate() {
+                        if model.is_some() {
+                            let model = model.as_ref().unwrap();
+                            render_pass.set_vertex_buffer(
+                                1,
+                                self.instance_buffers[model_index]
+                                    .as_ref()
+                                    .unwrap()
+                                    .slice(..),
+                            );
+                            render_pass.set_pipeline(&self.render_pipelines[1]);
+                            render_pass.draw_light_model(
+                                model,
+                                self.camera_bind_groups[camera_index].as_ref().unwrap(),
+                                &self.light_bind_group,
+                            );
+                            render_pass.set_pipeline(&self.render_pipelines[0]);
+                            render_pass.draw_model_instanced(
+                                model,
+                                0..model.instances.len() as u32,
+                                self.camera_bind_groups[camera_index].as_ref().unwrap(),
+                                &self.light_bind_group,
+                            );
+                        }
+                    }
+                }
+            }
         }
         self.queue.submit(std::iter::once(encoder.finish()));
         output.present();
@@ -503,6 +531,56 @@ impl RenderState {
     /// Returns a reference to the requested [`Instance`]. To modify an [`Instance`] use `override_instance()`.
     pub fn get_instance(&self, model_id: usize, instance_id: usize) -> &Instance {
         &self.models[model_id].as_ref().unwrap().instances[instance_id]
+    }
+
+    // TODO: Removing and modifying cameras
+    pub fn add_camera(&mut self, camera: Camera) -> usize {
+        let mut camera_uniform = CameraUniform::new();
+        camera_uniform.update_view_projection(
+            &camera,
+            self.surface_config.width as f32 / self.surface_config.height as f32,
+        );
+
+        let camera_buffer = self
+            .device
+            .create_buffer_init(&wgpu::util::BufferInitDescriptor {
+                label: Some("Camera Buffer"),
+                contents: bytemuck::cast_slice(&[camera_uniform]),
+                usage: wgpu::BufferUsages::UNIFORM | wgpu::BufferUsages::COPY_DST,
+            });
+
+        let camera_bind_group_layout =
+            self.device
+                .create_bind_group_layout(&wgpu::BindGroupLayoutDescriptor {
+                    entries: &[wgpu::BindGroupLayoutEntry {
+                        binding: 0,
+                        visibility: wgpu::ShaderStages::VERTEX_FRAGMENT,
+                        ty: wgpu::BindingType::Buffer {
+                            ty: wgpu::BufferBindingType::Uniform,
+                            has_dynamic_offset: false,
+                            min_binding_size: None,
+                        },
+                        count: None,
+                    }],
+                    label: Some("camera_bind_group_layout"),
+                });
+
+        let camera_bind_group = self.device.create_bind_group(&wgpu::BindGroupDescriptor {
+            layout: &camera_bind_group_layout,
+            entries: &[wgpu::BindGroupEntry {
+                binding: 0,
+                resource: camera_buffer.as_entire_binding(),
+            }],
+            label: Some("camera_bind_group"),
+        });
+
+        let index = self.cameras.len();
+        self.cameras.push(Some(camera));
+        self.camera_uniforms.push(Some(camera_uniform));
+        self.camera_buffers.push(Some(camera_buffer));
+        self.camera_bind_groups.push(Some(camera_bind_group));
+
+        index
     }
 }
 

@@ -11,9 +11,9 @@ use winit::{dpi::PhysicalSize, window::Window};
 pub mod camera;
 pub mod instance;
 pub mod light;
-pub mod model;
-pub mod resources;
-pub mod texture;
+mod model;
+mod resources;
+mod texture;
 
 /// This holds all the required information for rendering the scene.
 pub struct RenderState {
@@ -146,11 +146,10 @@ impl RenderState {
             _padding2: 0,
         };
 
-        // We'll want to update our lights position, so we use COPY_DST
         let light_buffer = device.create_buffer_init(&wgpu::util::BufferInitDescriptor {
             label: Some("Light VB"),
             contents: bytemuck::cast_slice(&[light_uniform]),
-            usage: wgpu::BufferUsages::UNIFORM | wgpu::BufferUsages::COPY_DST,
+            usage: wgpu::BufferUsages::UNIFORM,
         });
 
         let light_bind_group_layout =
@@ -177,12 +176,6 @@ impl RenderState {
             label: None,
         });
 
-        // let pipeline_layout = device.create_pipeline_layout(&wgpu::PipelineLayoutDescriptor {
-        //     label: Some("Render Pipeline Layout"),
-        //     bind_group_layouts: &[],
-        //     push_constant_ranges: &[],
-        // });
-
         let texture_bind_group_layout =
             device.create_bind_group_layout(&wgpu::BindGroupLayoutDescriptor {
                 entries: &[
@@ -199,8 +192,6 @@ impl RenderState {
                     wgpu::BindGroupLayoutEntry {
                         binding: 1,
                         visibility: wgpu::ShaderStages::FRAGMENT,
-                        // This should match the filterable field of the
-                        // corresponding Texture entry above.
                         ty: wgpu::BindingType::Sampler(wgpu::SamplerBindingType::Filtering),
                         count: None,
                     },
@@ -302,9 +293,6 @@ impl RenderState {
                 &self.surface_config,
                 "depth_texture",
             );
-            self.camera.aspect =
-                self.surface_config.width as f32 / self.surface_config.height as f32;
-            self.camera_uniform.update_view_projection(&self.camera)
         }
     }
 
@@ -354,7 +342,6 @@ impl RenderState {
                         store: wgpu::StoreOp::Store,
                     },
                 })],
-                // TODO: Depth texture
                 depth_stencil_attachment: Some(wgpu::RenderPassDepthStencilAttachment {
                     view: &self.depth_texture.view,
                     depth_ops: Some(wgpu::Operations {
@@ -421,14 +408,12 @@ impl RenderState {
         )
         .await
         .unwrap();
+
         let instance_data = model
             .instances
             .iter()
             .map(Instance::to_raw)
             .collect::<Vec<_>>();
-
-        let index = self.models.len();
-        self.models.push(Some(model));
 
         let instance_buffer = self
             .device
@@ -438,9 +423,31 @@ impl RenderState {
                 usage: wgpu::BufferUsages::VERTEX | wgpu::BufferUsages::COPY_DST,
             });
 
-        self.instance_buffers.push(Some(instance_buffer));
+        if self.models.iter().any(|option| option.is_none()) {
+            let index = self
+                .models
+                .iter()
+                .position(|option| option.is_none())
+                .unwrap();
 
-        index
+            self.models[index] = Some(model);
+            self.instance_buffers[index] = Some(instance_buffer);
+
+            index
+        } else {
+            let index = self.models.len();
+            self.models.push(Some(model));
+
+            self.instance_buffers.push(Some(instance_buffer));
+
+            index
+        }
+    }
+
+    /// Remove a [`Model`] from the [`RenderState`]
+    pub fn remove_model(&mut self, model_id: usize) {
+        self.models[model_id] = None;
+        self.instance_buffers[model_id] = None;
     }
 
     pub fn push_instance(&mut self, model_id: usize, instance: Instance) -> usize {
@@ -478,6 +485,7 @@ impl RenderState {
         }
     }
 
+    /// Override the specified instance.
     pub fn override_instance(
         &mut self,
         model_id: usize,
@@ -490,6 +498,11 @@ impl RenderState {
             bytemuck::cast_slice(&[instance_override.to_raw()]),
         );
         self.models[model_id].as_mut().unwrap().instances[instance_id] = instance_override;
+    }
+
+    /// Returns a reference to the requested [`Instance`]. To modify an [`Instance`] use `override_instance()`.
+    pub fn get_instance(&self, model_id: usize, instance_id: usize) -> &Instance {
+        &self.models[model_id].as_ref().unwrap().instances[instance_id]
     }
 }
 

@@ -36,8 +36,13 @@ fn main() {
             })
         })
         .collect::<Vec<_>>();
+
+    // Adding and deleting Models
+    let model = pollster::block_on(state.load_model_instanced("cube.obj", vec![]));
+    state.remove_model(model);
     let model = pollster::block_on(state.load_model_instanced("cube.obj", instances));
 
+    // Pushing an Instance
     state.push_instance(
         model,
         Instance {
@@ -50,56 +55,47 @@ fn main() {
 
     let current_time = std::time::SystemTime::now();
     event_loop
-        .run(move |event, elwt| {
-            match event {
-                Event::WindowEvent {
-                    event: WindowEvent::CloseRequested,
-                    ..
-                } => {
-                    println!("The close button was pressed; stopping");
+        .run(move |event, elwt| match event {
+            Event::WindowEvent {
+                event: WindowEvent::CloseRequested,
+                ..
+            } => {
+                println!("The close button was pressed; stopping");
+                elwt.exit();
+            }
+            Event::AboutToWait => {
+                counter += 1;
+                if counter > 1000 {
                     elwt.exit();
                 }
-                Event::AboutToWait => {
-                    // Application update code.
 
-                    // Queue a RedrawRequested event.
-                    //
-                    // You only need to call this if you've determined that you need to redraw in
-                    // applications which do not always need to. Applications that redraw continuously
-                    // can render here instead.
-                    counter += 1;
-                    if counter > 1000 {
-                        elwt.exit();
-                    }
-                    state.override_instance(
-                        0,
-                        2,
-                        Instance {
-                            position: Vec3::new(counter as f32 * 0.01, counter as f32 * 0.01, 0.0),
-                            rotation: Quat::from_array([0.0, 0.0, 0.0, 0.0]),
-                        },
-                    );
-                    window.request_redraw();
-                }
-                Event::WindowEvent {
-                    event: WindowEvent::RedrawRequested,
-                    ..
-                } => {
-                    state.render().unwrap();
-                    // Redraw the application.
-                    //
-                    // It's preferable for applications that do not render continuously to render in
-                    // this event rather than in AboutToWait, since rendering in here allows
-                    // the program to gracefully handle redraws requested by the OS.
-                }
-                Event::WindowEvent {
-                    event: WindowEvent::Resized(new_size),
-                    ..
-                } => {
-                    state.resize(new_size);
-                }
-                _ => (),
+                // Updating instances
+                let instance = state.get_instance(0, 2);
+                let instance_override = Instance {
+                    position: Vec3::new(
+                        instance.position.x + 0.01,
+                        instance.position.y + 0.01,
+                        instance.position.z,
+                    ),
+                    rotation: instance.rotation,
+                };
+
+                state.override_instance(0, 2, instance_override);
+                window.request_redraw();
             }
+            Event::WindowEvent {
+                event: WindowEvent::RedrawRequested,
+                ..
+            } => {
+                state.render().unwrap();
+            }
+            Event::WindowEvent {
+                event: WindowEvent::Resized(new_size),
+                ..
+            } => {
+                state.resize(new_size);
+            }
+            _ => (),
         })
         .unwrap();
 

@@ -10,6 +10,7 @@ pub const OPENGL_TO_WGPU_MATRIX: Mat4 = Mat4::from_cols_array(&[
 ]);
 */
 
+#[derive(Clone, Copy)]
 pub struct Camera {
     pub eye: Vec3,
     pub target: Vec3,
@@ -60,6 +61,7 @@ impl CameraUniform {
     }
 }
 
+#[derive(Clone, Copy)]
 pub struct Viewport {
     pub x: f32,
     pub y: f32,

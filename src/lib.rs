@@ -1,5 +1,4 @@
 use camera::{Camera, CameraUniform};
-use glam::Vec3;
 use instance::{Instance, InstanceRaw};
 use light::LightUniform;
 use model::{DrawLight, DrawModel, Model, Vertex};
@@ -95,35 +94,11 @@ impl RenderState {
         let depth_texture =
             texture::Texture::create_depth_texture(&device, &surface_config, "depth_texture");
 
-        let cameras = vec![Some(Camera {
-            // position the camera 1 unit up and 2 units back
-            // +z is out of the screen
-            eye: (0.0, 20.0, 0.01).into(),
-            // have it look at the origin
-            target: (0.0, 0.0, 0.0).into(),
-            // which way is "up"
-            up: Vec3::Y,
-            fovy: 96.0,
-            znear: 0.1,
-            zfar: 100.0,
-            viewport: None,
-        })];
+        let cameras = vec![];
 
-        let mut camera_uniform = CameraUniform::new();
-        camera_uniform.update_view_projection(
-            cameras[0].as_ref().unwrap(),
-            surface_config.width as f32 / surface_config.height as f32,
-        );
+        let camera_uniforms = vec![];
 
-        let camera_uniforms = vec![Some(camera_uniform)];
-
-        let camera_buffers = vec![Some(device.create_buffer_init(
-            &wgpu::util::BufferInitDescriptor {
-                label: Some("Camera Buffer"),
-                contents: bytemuck::cast_slice(&[camera_uniform]),
-                usage: wgpu::BufferUsages::UNIFORM | wgpu::BufferUsages::COPY_DST,
-            },
-        ))];
+        let camera_buffers = vec![];
 
         let camera_bind_group_layout =
             device.create_bind_group_layout(&wgpu::BindGroupLayoutDescriptor {
@@ -140,14 +115,7 @@ impl RenderState {
                 label: Some("camera_bind_group_layout"),
             });
 
-        let camera_bind_groups = vec![Some(device.create_bind_group(&wgpu::BindGroupDescriptor {
-            layout: &camera_bind_group_layout,
-            entries: &[wgpu::BindGroupEntry {
-                binding: 0,
-                resource: camera_buffers[0].as_ref().unwrap().as_entire_binding(),
-            }],
-            label: Some("camera_bind_group"),
-        }))];
+        let camera_bind_groups = vec![];
 
         let light_uniform = LightUniform {
             position: [2.0, 2.0, 2.0],
@@ -581,6 +549,30 @@ impl RenderState {
         self.camera_bind_groups.push(Some(camera_bind_group));
 
         index
+    }
+
+    /// This currently only sets the corresponding element in the cameras [`Vec`] to [`None`].
+    /// When adding new [`Camera`]s the [`None`] values are not reused to keep the rendering order of the cameras. *This is subject to change!*
+    pub fn remove_camera(&mut self, camera_id: usize) {
+        self.cameras[camera_id] = None;
+        self.camera_uniforms[camera_id] = None;
+        self.camera_bind_groups[camera_id] = None;
+        self.camera_buffers[camera_id] = None;
+    }
+
+    pub fn override_camera(&mut self, camera_id: usize, camera_override: Camera) {
+        self.cameras[camera_id] = Some(camera_override);
+        self.camera_uniforms[camera_id]
+            .unwrap()
+            .update_view_projection(
+                &camera_override,
+                self.surface_config.width as f32 / self.surface_config.height as f32,
+            );
+        self.queue.write_buffer(
+            self.camera_buffers[camera_id].as_ref().unwrap(),
+            0,
+            bytemuck::cast_slice(&[self.camera_uniforms[camera_id].unwrap()]),
+        );
     }
 }
 

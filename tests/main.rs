@@ -19,7 +19,21 @@ fn main() {
     let window = Window::new(&event_loop).unwrap();
 
     let mut state = pollster::block_on(RenderState::new(&window));
-    let camera = Camera {
+
+    let camera_1 = Camera {
+        // position the camera 1 unit up and 2 units back
+        // +z is out of the screen
+        eye: (0.0, 20.0, 0.01).into(),
+        // have it look at the origin
+        target: (0.0, 0.0, 0.0).into(),
+        // which way is "up"
+        up: Vec3::Y,
+        fovy: 96.0,
+        znear: 0.1,
+        zfar: 100.0,
+        viewport: None,
+    };
+    let camera_2 = Camera {
         // position the camera 1 unit up and 2 units back
         // +z is out of the screen
         eye: (0.0, 20.0, 0.01).into(),
@@ -37,7 +51,33 @@ fn main() {
             h: 128.0,
         }),
     };
-    state.add_camera(camera);
+
+    state.add_camera(camera_1);
+    let camera_2_id = state.add_camera(camera_2);
+    state.remove_camera(camera_2_id);
+    let camera_2_id = state.add_camera(camera_2);
+
+    state.override_camera(
+        camera_2_id,
+        Camera {
+            // position the camera 1 unit up and 2 units back
+            // +z is out of the screen
+            eye: (0.0, 30.0, 0.01).into(),
+            // have it look at the origin
+            target: (0.0, 1.0, 0.0).into(),
+            // which way is "up"
+            up: Vec3::Y,
+            fovy: 96.0,
+            znear: 0.1,
+            zfar: 100.0,
+            viewport: Some(Viewport {
+                x: 100.0,
+                y: 100.0,
+                w: 128.0,
+                h: 128.0,
+            }),
+        },
+    );
 
     const NUM_INSTANCES_PER_ROW: u32 = 10;
     const SPACE_BETWEEN: f32 = 3.0;

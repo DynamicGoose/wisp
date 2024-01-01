@@ -6,7 +6,6 @@ pub struct Model {
     pub meshes: Vec<Mesh>,
     pub materials: Vec<Material>,
     pub instances: Vec<Instance>,
-    pub instance_buffer_id: usize,
 }
 pub struct Material {
     pub name: String,

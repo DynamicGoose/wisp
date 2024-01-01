@@ -15,16 +15,18 @@ pub mod model;
 pub mod resources;
 pub mod texture;
 
+/// This holds all the required information for rendering the scene.
 pub struct RenderState {
     surface: wgpu::Surface,
     surface_config: wgpu::SurfaceConfiguration,
-    pub device: wgpu::Device,
-    pub queue: wgpu::Queue,
+    device: wgpu::Device,
+    queue: wgpu::Queue,
     models: Vec<Option<Model>>,
     instance_buffers: Vec<Option<wgpu::Buffer>>,
+    recreate_instance_buffers: Vec<usize>,
     depth_texture: Texture,
     // these are temporary
-    pub texture_bind_group_layout: wgpu::BindGroupLayout,
+    texture_bind_group_layout: wgpu::BindGroupLayout,
     camera: Camera,
     camera_uniform: CameraUniform,
     camera_bind_group: wgpu::BindGroup,
@@ -85,6 +87,7 @@ impl RenderState {
         let models = vec![];
 
         let instance_buffers = vec![];
+        let recreate_instance_buffers = vec![];
 
         let depth_texture =
             texture::Texture::create_depth_texture(&device, &surface_config, "depth_texture");
@@ -277,6 +280,7 @@ impl RenderState {
             queue,
             models,
             instance_buffers,
+            recreate_instance_buffers,
             depth_texture,
             texture_bind_group_layout,
             camera,
@@ -305,6 +309,26 @@ impl RenderState {
     }
 
     pub fn render(&mut self) -> Result<(), wgpu::SurfaceError> {
+        if !self.recreate_instance_buffers.is_empty() {
+            for i in &self.recreate_instance_buffers {
+                let model = self.models[*i].as_mut().unwrap();
+
+                let instance_data = model
+                    .instances
+                    .iter()
+                    .map(Instance::to_raw)
+                    .collect::<Vec<_>>();
+
+                self.instance_buffers[*i] = Some(self.device.create_buffer_init(
+                    &wgpu::util::BufferInitDescriptor {
+                        label: Some("Instance Buffer"),
+                        contents: bytemuck::cast_slice(&instance_data),
+                        usage: wgpu::BufferUsages::VERTEX | wgpu::BufferUsages::COPY_DST,
+                    },
+                ));
+            }
+        }
+
         let output = self.surface.get_current_texture()?;
         let view = output
             .texture
@@ -344,15 +368,13 @@ impl RenderState {
             });
 
             // TODO: *IMPROVEMENTS MUST BE MADE*
+            let mut index = 0_usize;
             self.models.iter().for_each(|model| {
                 if model.is_some() {
                     let model = model.as_ref().unwrap();
                     render_pass.set_vertex_buffer(
                         1,
-                        self.instance_buffers[model.instance_buffer_id]
-                            .as_ref()
-                            .unwrap()
-                            .slice(..),
+                        self.instance_buffers[index].as_ref().unwrap().slice(..),
                     );
                     render_pass.set_pipeline(&self.render_pipelines[1]);
                     render_pass.draw_light_model(
@@ -368,76 +390,28 @@ impl RenderState {
                         &self.light_bind_group,
                     );
                 }
+
+                index += 1;
             });
         }
-
         self.queue.submit(std::iter::once(encoder.finish()));
         output.present();
 
         Ok(())
     }
 
+    /// This can be used for adding custom shaders using a [`wgpu::RenderPipelineDescriptor`].
     pub fn add_render_pipeline(&mut self, desc: &wgpu::RenderPipelineDescriptor) {
-        // let vertex_shader = self.device.create_shader_module(vertex_shader);
-        // let fragment_shader = self.device.create_shader_module(fragment_shader);
-
-        // let pipeline = self
-        //     .device
-        //     .create_render_pipeline(&wgpu::RenderPipelineDescriptor {
-        //         label: Some("Render Pipeline"),
-        //         layout: Some(&self.pipeline_layout),
-        //         vertex: wgpu::VertexState {
-        //             module: &vertex_shader,
-        //             entry_point: "vs_main",
-        //             buffers: &[model::ModelVertex::desc()],
-        //         },
-        //         fragment: Some(wgpu::FragmentState {
-        //             module: &fragment_shader,
-        //             entry_point: "fs_main",
-        //             targets: &[Some(wgpu::ColorTargetState {
-        //                 format: self.surface_config.format,
-        //                 blend: Some(wgpu::BlendState {
-        //                     alpha: wgpu::BlendComponent::REPLACE,
-        //                     color: wgpu::BlendComponent::REPLACE,
-        //                 }),
-        //                 write_mask: wgpu::ColorWrites::ALL,
-        //             })],
-        //         }),
-        //         primitive: wgpu::PrimitiveState {
-        //             topology: wgpu::PrimitiveTopology::TriangleList,
-        //             strip_index_format: None,
-        //             front_face: wgpu::FrontFace::Ccw,
-        //             cull_mode: Some(wgpu::Face::Back),
-        //             // Setting this to anything other than Fill requires Features::NON_FILL_POLYGON_MODE
-        //             polygon_mode: wgpu::PolygonMode::Fill,
-        //             // Requires Features::DEPTH_CLIP_CONTROL
-        //             unclipped_depth: false,
-        //             // Requires Features::CONSERVATIVE_RASTERIZATION
-        //             conservative: false,
-        //         },
-        //         depth_stencil: None,
-        //         // Some(texture::Texture::DEPTH_FORMAT).map(|format| {
-        //         //     wgpu::DepthStencilState {
-        //         //         format,
-        //         //         depth_write_enabled: true,
-        //         //         depth_compare: wgpu::CompareFunction::Less,
-        //         //         stencil: wgpu::StencilState::default(),
-        //         //         bias: wgpu::DepthBiasState::default(),
-        //         //     }
-        //         // }),
-        //         multisample: wgpu::MultisampleState {
-        //             count: 1,
-        //             mask: !0,
-        //             alpha_to_coverage_enabled: false,
-        //         },
-        //         multiview: None,
-        //     });
         let render_pipeline = self.device.create_render_pipeline(desc);
         self.render_pipelines.push(render_pipeline);
     }
 
     /// Adds a [`Model`] and returns it's id
-    pub async fn add_model(&mut self, model_file: &str, instances: Vec<Instance>) -> usize {
+    pub async fn load_model_instanced(
+        &mut self,
+        model_file: &str,
+        instances: Vec<Instance>,
+    ) -> usize {
         let model = load_model(
             model_file,
             &self.device,
@@ -461,13 +435,61 @@ impl RenderState {
             .create_buffer_init(&wgpu::util::BufferInitDescriptor {
                 label: Some("Instance Buffer"),
                 contents: bytemuck::cast_slice(&instance_data),
-                usage: wgpu::BufferUsages::VERTEX,
+                usage: wgpu::BufferUsages::VERTEX | wgpu::BufferUsages::COPY_DST,
             });
 
-        self.models[index].as_mut().unwrap().instance_buffer_id = self.instance_buffers.len();
         self.instance_buffers.push(Some(instance_buffer));
 
         index
+    }
+
+    pub fn push_instance(&mut self, model_id: usize, instance: Instance) -> usize {
+        let model = self.models[model_id].as_mut().unwrap();
+        let index = model.instances.len();
+        model.instances.push(instance);
+
+        if !self
+            .recreate_instance_buffers
+            .iter()
+            .any(|id| id == &model_id)
+        {
+            self.recreate_instance_buffers.push(model_id);
+        }
+
+        index
+    }
+
+    /// This will remove the requested [`Instance`], however that also means the [`Instance`] [`Vec`] for that [`Model`] will shrink.
+    /// That means any indexes your application uses that are larger than the requested index *will have to be subtracted by 1*.
+    // TODO: Maybe use Hashmaps in the future
+    pub fn remove_instance(&mut self, model_id: usize, instance_id: usize) {
+        self.models[model_id]
+            .as_mut()
+            .unwrap()
+            .instances
+            .remove(instance_id);
+
+        if !self
+            .recreate_instance_buffers
+            .iter()
+            .any(|id| id == &model_id)
+        {
+            self.recreate_instance_buffers.push(model_id);
+        }
+    }
+
+    pub fn override_instance(
+        &mut self,
+        model_id: usize,
+        instance_id: usize,
+        instance_override: Instance,
+    ) {
+        self.queue.write_buffer(
+            self.instance_buffers[model_id].as_ref().unwrap(),
+            instance_id as u64 * 100,
+            bytemuck::cast_slice(&[instance_override.to_raw()]),
+        );
+        self.models[model_id].as_mut().unwrap().instances[instance_id] = instance_override;
     }
 }
 

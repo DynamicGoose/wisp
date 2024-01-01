@@ -1,3 +1,4 @@
+use glam::{Quat, Vec3};
 use winit::{
     event::{Event, WindowEvent},
     event_loop::EventLoop,
@@ -35,10 +36,19 @@ fn main() {
             })
         })
         .collect::<Vec<_>>();
-    pollster::block_on(state.add_model("cube.obj", instances));
+    let model = pollster::block_on(state.load_model_instanced("cube.obj", instances));
+
+    state.push_instance(
+        model,
+        Instance {
+            position: Vec3::new(1.0, 1.0, 1.0),
+            rotation: Quat::from_axis_angle(Vec3::Z, 0.0),
+        },
+    );
 
     let mut counter = 0;
 
+    let current_time = std::time::SystemTime::now();
     event_loop
         .run(move |event, elwt| {
             match event {
@@ -58,9 +68,17 @@ fn main() {
                     // applications which do not always need to. Applications that redraw continuously
                     // can render here instead.
                     counter += 1;
-                    // if counter > 1000 {
-                    //     elwt.exit();
-                    // }
+                    if counter > 1000 {
+                        elwt.exit();
+                    }
+                    state.override_instance(
+                        0,
+                        2,
+                        Instance {
+                            position: Vec3::new(counter as f32 * 0.01, counter as f32 * 0.01, 0.0),
+                            rotation: Quat::from_array([0.0, 0.0, 0.0, 0.0]),
+                        },
+                    );
                     window.request_redraw();
                 }
                 Event::WindowEvent {
@@ -84,4 +102,6 @@ fn main() {
             }
         })
         .unwrap();
+
+    println!("{}", current_time.elapsed().unwrap().as_millis());
 }

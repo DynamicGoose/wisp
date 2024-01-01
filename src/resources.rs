@@ -188,6 +188,5 @@ pub async fn load_model(
         meshes,
         materials,
         instances,
-        instance_buffer_id: 0,
     })
 }
